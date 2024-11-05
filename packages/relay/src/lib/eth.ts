@@ -1565,6 +1565,79 @@ export class EthImpl implements Eth {
     const transactionBuffer = Buffer.from(EthImpl.prune0x(transaction), 'hex');
     let fileId: FileId | null = null;
     let txSubmitted = false;
+    // try {
+    //   const sendRawTransactionResult = await this.hapiService
+    //     .getSDKClient()
+    //     .submitEthereumTransaction(
+    //       transactionBuffer,
+    //       EthImpl.ethSendRawTransaction,
+    //       requestDetails,
+    //       originalCallerAddress,
+    //       networkGasPriceInWeiBars,
+    //       await this.getCurrentNetworkExchangeRateInCents(requestDetails),
+    //     );
+
+    //   txSubmitted = true;
+    //   fileId = sendRawTransactionResult!.fileId;
+
+    //   // Wait for the record from the execution.
+    //   const txId = sendRawTransactionResult!.txResponse.transactionId.toString();
+    //   const formattedId = formatTransactionIdWithoutQueryParams(txId);
+
+    //   // handle formattedId being null
+    //   if (!formattedId) {
+    //     throw predefined.INTERNAL_ERROR(`Invalid transactionID: ${txId}`);
+    //   }
+
+    //   const contractResult = await this.mirrorNodeClient.repeatedRequest(
+    //     this.mirrorNodeClient.getContractResult.name,
+    //     [formattedId, requestDetails],
+    //     this.mirrorNodeClient.getMirrorNodeRequestRetryCount(),
+    //     requestDetails,
+    //   );
+
+    //   if (!contractResult) {
+    //     this.logger.warn(`${requestIdPrefix} No record retrieved`);
+    //     throw predefined.INTERNAL_ERROR(`No matching record found for transaction id ${txId}`);
+    //   }
+
+    //   if (contractResult.hash == null) {
+    //     this.logger.error(
+    //       `${requestIdPrefix} The ethereumHash can never be null for an ethereum transaction, and yet it was!!`,
+    //     );
+    //     throw predefined.INTERNAL_ERROR();
+    //   }
+
+    //   return contractResult.hash;
+    // } catch (e: any) {
+    //   return this.sendRawTransactionErrorHandler(
+    //     e,
+    //     transaction,
+    //     transactionBuffer,
+    //     txSubmitted,
+    //     parsedTx,
+    //     requestDetails,
+    //   );
+    // } finally {
+    //   /**
+    //    *  For transactions of type CONTRACT_CREATE, if the contract's bytecode (calldata) exceeds 5120 bytes, HFS is employed to temporarily store the bytecode on the network.
+    //    *  After transaction execution, whether successful or not, any entity associated with the 'fileId' should be removed from the Hedera network.
+    //    */
+    //   if (fileId) {
+    //     this.hapiService
+    //       .getSDKClient()
+    //       .deleteFile(fileId, requestDetails, EthImpl.ethSendRawTransaction, fileId.toString(), originalCallerAddress)
+    //       .then();
+    //   }
+    // }
+
+    let submittedTransactionId: string = '';
+    let sendRawTransactionError: any;
+    let formattedId: string | null = null;
+    let result: string | JsonRpcError;
+
+    // const invalidTxIdError =
+
     try {
       const sendRawTransactionResult = await this.hapiService
         .getSDKClient()
@@ -1581,43 +1654,29 @@ export class EthImpl implements Eth {
       fileId = sendRawTransactionResult!.fileId;
 
       // Wait for the record from the execution.
-      const txId = sendRawTransactionResult!.txResponse.transactionId.toString();
-      const formattedId = formatTransactionIdWithoutQueryParams(txId);
-
-      // handle formattedId being null
+      submittedTransactionId = sendRawTransactionResult!.txResponse.transactionId.toString();
+      formattedId = formatTransactionIdWithoutQueryParams(submittedTransactionId);
       if (!formattedId) {
-        throw predefined.INTERNAL_ERROR(`Invalid transactionID: ${txId}`);
+        throw predefined.INTERNAL_ERROR(`Invalid transactionID: submittedTransactionId=${submittedTransactionId}`);
       }
-
-      const contractResult = await this.mirrorNodeClient.repeatedRequest(
-        this.mirrorNodeClient.getContractResult.name,
-        [formattedId, requestDetails],
-        this.mirrorNodeClient.getMirrorNodeRequestRetryCount(),
-        requestDetails,
-      );
-
-      if (!contractResult) {
-        this.logger.warn(`${requestIdPrefix} No record retrieved`);
-        throw predefined.INTERNAL_ERROR(`No matching record found for transaction id ${txId}`);
-      }
-
-      if (contractResult.hash == null) {
-        this.logger.error(
-          `${requestIdPrefix} The ethereumHash can never be null for an ethereum transaction, and yet it was!!`,
-        );
-        throw predefined.INTERNAL_ERROR();
-      }
-
-      return contractResult.hash;
     } catch (e: any) {
-      return this.sendRawTransactionErrorHandler(
-        e,
-        transaction,
-        transactionBuffer,
-        txSubmitted,
-        parsedTx,
-        requestDetails,
-      );
+      if (e instanceof SDKClientError && (e.isConnectionDropped() || e.isTimeoutExceeded())) {
+        // submittedTransactionId = e.transactionId || '';
+        formattedId = formatTransactionIdWithoutQueryParams(e.transactionId || '');
+        // if (!formattedId) {
+        //   throw invalidTxIdError
+        // }
+      }
+
+      sendRawTransactionError = e;
+      // sendRawTransactionError = await this.sendRawTransactionErrorHandler(
+      //   e,
+      //   transaction,
+      //   transactionBuffer,
+      //   txSubmitted,
+      //   parsedTx,
+      //   requestDetails,
+      // );
     } finally {
       /**
        *  For transactions of type CONTRACT_CREATE, if the contract's bytecode (calldata) exceeds 5120 bytes, HFS is employed to temporarily store the bytecode on the network.
@@ -1629,6 +1688,50 @@ export class EthImpl implements Eth {
           .deleteFile(fileId, requestDetails, EthImpl.ethSendRawTransaction, fileId.toString(), originalCallerAddress)
           .then();
       }
+    }
+
+    // handle formattedId being null
+    // const formattedId = formatTransactionIdWithoutQueryParams(submittedTransactionId);
+    this.logger.info(`formattedIdformattedIdformattedIdformattedId`);
+    this.logger.info(submittedTransactionId);
+    this.logger.info(formattedId);
+
+    // if (txSubmitted && !formattedId) {
+    //   throw predefined.INTERNAL_ERROR(`Invalid transactionID: submittedTransactionId=${submittedTransactionId}`);
+    // }
+
+    // if (!txSubmitted && !formattedId)
+
+    if (formattedId) {
+      const contractResult = await this.mirrorNodeClient.repeatedRequest(
+        this.mirrorNodeClient.getContractResult.name,
+        [formattedId, requestDetails],
+        this.mirrorNodeClient.getMirrorNodeRequestRetryCount(),
+        requestDetails,
+      );
+
+      if (!contractResult) {
+        this.logger.warn(`${requestIdPrefix} No record retrieved: transactionId=${submittedTransactionId}`);
+        throw predefined.INTERNAL_ERROR(`No matching record found for transaction ID ${submittedTransactionId}`);
+      }
+
+      if (contractResult.hash == null) {
+        this.logger.error(
+          `${requestIdPrefix} Returned contract has null hash: transactionId=${submittedTransactionId}`,
+        );
+        throw predefined.INTERNAL_ERROR(`Returned contract has null hash: transactionId=${submittedTransactionId}`);
+      }
+      return contractResult.hash;
+    } else {
+      this.logger.info('SAP MAT CHUA NA');
+      return this.sendRawTransactionErrorHandler(
+        sendRawTransactionError,
+        transaction,
+        transactionBuffer,
+        txSubmitted,
+        parsedTx,
+        requestDetails,
+      );
     }
   }
 

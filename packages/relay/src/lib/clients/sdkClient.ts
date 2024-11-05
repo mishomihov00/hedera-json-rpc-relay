@@ -459,27 +459,36 @@ export class SDKClient {
       Hbar.fromTinybars(Math.floor(networkGasPriceInTinyBars * constants.MAX_GAS_PER_SEC)),
     );
 
-    let txResponse;
-    try {
-      txResponse = await this.executeTransaction(
-        ethereumTransaction,
-        callerName,
-        interactingEntity,
-        requestDetails,
-        true,
-        originalCallerAddress,
-      );
-    } catch (e: any) {
-      if (e instanceof SDKClientError && (e.isConnectionDropped() || e.isTimeoutExceeded())) {
-        const isFailed = await this.isFailedTransaction(requestDetails, e.transactionId);
-        if (isFailed) {
-          throw e;
-        }
-        txResponse = { transactionId: e.transactionId };
-      } else {
-        throw e;
-      }
-    }
+    // let txResponse;
+    // try {
+    //   txResponse = await this.executeTransaction(
+    //     ethereumTransaction,
+    //     callerName,
+    //     interactingEntity,
+    //     requestDetails,
+    //     true,
+    //     originalCallerAddress,
+    //   );
+    // } catch (e: any) {
+    //   if (e instanceof SDKClientError && (e.isConnectionDropped() || e.isTimeoutExceeded())) {
+    //     const isFailed = await this.isFailedTransaction(requestDetails, e.transactionId);
+    //     if (isFailed) {
+    //       throw e;
+    //     }
+    //     txResponse = { transactionId: e.transactionId };
+    //   } else {
+    //     throw e;
+    //   }
+    // }
+
+    const txResponse = await this.executeTransaction(
+      ethereumTransaction,
+      callerName,
+      interactingEntity,
+      requestDetails,
+      true,
+      originalCallerAddress,
+    );
 
     return {
       fileId,
@@ -781,20 +790,23 @@ export class SDKClient {
       return transactionResponse;
     } catch (e: any) {
       if (e instanceof JsonRpcError) {
+        this.logger.warn(
+          e,
+          `${requestDetails.formattedRequestId} Fail to execute ${txConstructorName} transaction due to a JsonRpcError: transactionId=${transaction.transactionId}, callerName=${callerName}, status=${e.code} message=${e.message}`,
+        );
         throw e;
       }
 
       const sdkClientError = new SDKClientError(e, e.message, transaction.transactionId?.toString());
+      this.logger.warn(
+        sdkClientError,
+        `${requestDetails.formattedRequestId} Fail to execute ${txConstructorName} transaction due to an SDKClientError: transactionId=${transaction.transactionId}, callerName=${callerName}, status=${sdkClientError.status}(${sdkClientError.status._code}) message=${sdkClientError.message}`,
+      );
 
       // Throw WRONG_NONCE error as more error handling logic for WRONG_NONCE is awaited in eth.sendRawTransactionErrorHandler().
       if (sdkClientError.status && sdkClientError.status === Status.WrongNonce) {
         throw sdkClientError;
       }
-
-      this.logger.warn(
-        sdkClientError,
-        `${requestDetails.formattedRequestId} Fail to execute ${txConstructorName} transaction: transactionId=${transaction.transactionId}, callerName=${callerName}, status=${sdkClientError.status}(${sdkClientError.status._code}) message=${sdkClientError.message}`,
-      );
 
       if (!transactionResponse) {
         if (sdkClientError.isConnectionDropped() || sdkClientError.isTimeoutExceeded()) {
