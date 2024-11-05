@@ -2,10 +2,10 @@ name: Charts
 
 on:
   pull_request:
-    branches: [ main, release/** ]
+    branches: [main, release/**]
   push:
-    branches: [ main, release/** ]
-    tags: [ v* ]
+    branches: [main, release/**, 3207-fix-remove-usage-of-mn-client-in-sdk-client]
+    tags: [v*]
 
 concurrency:
   group: pr-checks-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -29,7 +29,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Setup Helm
         uses: Azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0
@@ -57,7 +57,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Setup Helm
         uses: Azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0

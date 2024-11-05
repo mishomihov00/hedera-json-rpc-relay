@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, release/**]
   push:
-    branches: [main, release/**]
+    branches: [main, release/**, 3207-fix-remove-usage-of-mn-client-in-sdk-client]
     tags: [v*]
 
 concurrency:
@@ -89,5 +89,5 @@ jobs:
         if: ${{ always() && !cancelled() }}
         with:
           check_name: Dapp Test Report
-          report_paths: "**/*.xml"
+          report_paths: '**/*.xml'
           detailed_summary: true
