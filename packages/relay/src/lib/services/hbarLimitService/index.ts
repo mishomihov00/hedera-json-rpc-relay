@@ -78,12 +78,6 @@ export class HbarLimitService implements IHbarLimitService {
    */
   private reset: Date;
 
-  /**
-   * Counts the number of active users per single rate limiter duration.
-   * @private
-   */
-  private activeUsersPerLimitPeriodCounter: Counter;
-
   constructor(
     private readonly hbarSpendingPlanRepository: HbarSpendingPlanRepository,
     private readonly ethAddressHbarSpendingPlanRepository: EthAddressHbarSpendingPlanRepository,
@@ -146,16 +140,6 @@ export class HbarLimitService implements IHbarLimitService {
     logger.info(
       `HBAR Limiter successfully configured: totalBudget=${totalBudget}, maxLimitForBasicTier=${HbarLimitService.TIER_LIMITS.BASIC}, maxLimitForExtendedTier=${HbarLimitService.TIER_LIMITS.EXTENDED}, maxLimitForprivilegedTier=${HbarLimitService.TIER_LIMITS.PRIVILEGED}, limitDuration=${limitDuration}, resetTimeStamp=${this.reset}.`,
     );
-
-    const activeUsersPerLimitPeriodCounterName = 'rpc_relay_hbar_rate_limiter_active_users';
-    this.register.removeSingleMetric(activeUsersPerLimitPeriodCounterName);
-    this.activeUsersPerLimitPeriodCounter = new Counter({
-      name: activeUsersPerLimitPeriodCounterName,
-      help: 'Relay Hbar rate limiter active users counter',
-      registers: [register],
-      labelNames: ['methodName'],
-    });
-    this.activeUsersPerLimitPeriodCounter.inc(0);
   }
 
   /**
@@ -168,7 +152,6 @@ export class HbarLimitService implements IHbarLimitService {
     await this.hbarSpendingPlanRepository.resetAmountSpentOfAllPlans(requestDetails);
     this.resetBudget();
     this.resetTemporaryMetrics();
-    this.resetActiveUsers();
     this.reset = this.getResetTimestamp();
     this.logger.trace(
       `${requestDetails.formattedRequestId} HBAR Rate Limit reset: remainingBudget=${this.remainingBudget}, newResetTimestamp=${this.reset}`,
@@ -211,7 +194,6 @@ export class HbarLimitService implements IHbarLimitService {
     if (!spendingPlan) {
       // Create a basic spending plan if none exists for the eth address or ip address
       spendingPlan = await this.createBasicSpendingPlan(ethAddress, requestDetails);
-      spendingPlan && this.activeUsersPerLimitPeriodCounter.labels(methodName).inc();
     }
 
     const spendingLimit = HbarLimitService.TIER_LIMITS[spendingPlan.subscriptionTier].toTinybars();
@@ -260,7 +242,6 @@ export class HbarLimitService implements IHbarLimitService {
       if (ethAddress) {
         // Create a basic spending plan if none exists for the eth address
         spendingPlan = await this.createBasicSpendingPlan(ethAddress, requestDetails);
-        spendingPlan && this.activeUsersPerLimitPeriodCounter.labels('addExpense').inc();
       } else {
         this.logger.warn(
           `${requestDetails.formattedRequestId} Cannot add expense to a spending plan without an eth address or ip address`,
@@ -380,14 +361,6 @@ export class HbarLimitService implements IHbarLimitService {
    */
   private resetTemporaryMetrics(): void {
     Object.values(SubscriptionTier).forEach((tier) => this.uniqueSpendingPlansCounter[tier].reset());
-  }
-
-  /**
-   * Resets the number of active users per rate limiter duration.
-   * @private
-   */
-  private resetActiveUsers(): void {
-    this.activeUsersPerLimitPeriodCounter.reset();
   }
 
   /**

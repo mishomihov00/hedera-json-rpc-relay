@@ -21,7 +21,7 @@
 import { JsonRpcError, MirrorNodeClientError, predefined, Relay, RelayImpl } from '@hashgraph/json-rpc-relay/dist';
 import { ConfigService } from '@hashgraph/json-rpc-config-service/dist/services';
 import { ITracerConfig, RequestDetails } from '@hashgraph/json-rpc-relay/src/lib/types';
-import { collectDefaultMetrics, Histogram, Registry } from 'prom-client';
+import { collectDefaultMetrics, Counter, Histogram, Registry } from 'prom-client';
 import KoaJsonRpc from './koaJsonRpc';
 import { TracerType, TYPES, Validator } from './validator';
 import pino from 'pino';
@@ -62,6 +62,15 @@ const methodResponseHistogram = new Histogram({
   labelNames: ['method', 'statusCode'],
   registers: [register],
   buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 20000, 30000, 40000, 50000, 60000], // ms (milliseconds)
+});
+
+const metricCounterName = 'rpc_relay_daily_active_users';
+register.removeSingleMetric(metricCounterName);
+const dailyActveUsersCounter = new Counter({
+  name: metricCounterName,
+  help: `Relay ${metricCounterName} function`,
+  labelNames: ['methodName', 'from'],
+  registers: [register],
 });
 
 // set cors
@@ -211,6 +220,9 @@ const logAndHandleResponse = async (methodName: string, methodParams: any[], met
         )}`,
       );
       Validator.validateParams(methodParams, methodValidations);
+      if (methodName === 'eth_call') {
+        dailyActveUsersCounter.labels(methodName, methodParams?.[0].from).inc();
+      }
     }
     const response = await methodFunction(requestDetails);
     if (response instanceof JsonRpcError) {
